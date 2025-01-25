@@ -20,8 +20,12 @@ async def on_ready():
     print(f"We have logged in as {bot.user}")
 
 @bot.command()
-async def Stats(ctx,*args ):
-    
+async def Watch(ctx,*args ):
+    IsSummary = False
+    result = DP.Main(args,IsSummary)
+    await ctx.send(result)
+@bot.command()
+async def watch(ctx,*args ):
     IsSummary = False
     result = DP.Main(args,IsSummary)
     await ctx.send(result)
@@ -30,12 +34,18 @@ async def Stats(ctx,*args ):
 async def Summary(ctx,*args ):
     IsSummary = True
     result = DP.Main(args,IsSummary)
-    
     await ctx.send(result)
-@bot.command()
-async def Guild(ctx,GuildName =str):
-    result = DP.GuildData(GuildName)
+
+@bot.command()    
+async def summary(ctx,*args ):
+    IsSummary = True
+    result = DP.Main(args,IsSummary)
     await ctx.send(result)
     
+#@bot.command()
+#async def Guild(ctx, *, GuildName: str = None):
+#   result = DP.GuildData(GuildName)
+#   await ctx.send(result)
+#   
 
 bot.run(TOKEN)

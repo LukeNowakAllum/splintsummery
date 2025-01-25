@@ -1,6 +1,7 @@
 import requests
 import time
 import urllib.parse
+import emoji
 from binascii import hexlify
 from beemgraphenebase.ecdsasig import sign_message
 from datetime import datetime
@@ -13,7 +14,7 @@ urls = ['https://api.coingecko.com/api/v3/simple/price'
         ,"https://api2.splinterlands.com/players/unclaimed_balances"
         ,'https://game-api.splinterlands.com/players/login'
         ,'https://api.splinterlands.com/players/balance_history'
-        ,'https://api.splinterlands.com/guilds'
+        ,'https://api.splinterlands.com/guilds/'
         ]
 
 
@@ -59,8 +60,10 @@ def getBalance (Username):
     decBalance = next((float(item['balance']) for item in balances if item['token'] == 'DEC'), 0.0)
     spsBalance = next((float(item['balance']) for item in balances if item['token'] == 'SPS'), 0.0)
     stakedSps = next((float(item['balance']) for item in balances if item['token'] == 'SPSP'), 0.0)
+    GlintBalance = next((item['balance'] for item in balances if item['token'] == 'GLINT'),"not found")
     meritsBalance = next((item['balance'] for item in balances if item['token'] == 'MERITS'),"not found")
-    return decBalance, spsBalance ,stakedSps,meritsBalance
+    VoucherBalance = next((item['balance'] for item in balances if item['token'] == 'VOUCHER'),"not found")
+    return decBalance, spsBalance ,stakedSps,meritsBalance,GlintBalance,VoucherBalance
     
 def getUnclaimedBalance(Username):
     
@@ -94,32 +97,38 @@ def Main(Username, IsSummary):
     TotalSps = 0
     TotalStaked = 0
     TotalUnclaimed = 0
+    AllUnclaimed = 0
     AccData = ""
     for Username in Username:
-        UnclaimedSps, UnclaimedBalances= getUnclaimedBalance(Username)
-        decBalance, spsBalance ,stakedSps ,merits = getBalance(Username)
         
+        UnclaimedSps,UnclaimedBalances = getUnclaimedBalance(Username)
+        decBalance, spsBalance ,stakedSps ,merits, GlintBalance, VoucherBalance = getBalance(Username)
         TotalUnclaimed =  (round((UnclaimedSps),2))
         TotalDec =  (round((TotalDec + decBalance),2))
         TotalSps =  (round((TotalSps + spsBalance),2))
         TotalStaked =  (round((TotalStaked +stakedSps),2))
-        
+        AllUnclaimed =  (round((AllUnclaimed+TotalUnclaimed),2))
         AccData += f"\n**Username**: {Username}\n"
-        AccData += f"**DEC Balance**: {decBalance}\n"
-        AccData += f"**SPS Liquid**: {spsBalance}\n"
+        AccData += f"**DEC**: {decBalance}\n"
+        AccData += f"**Liquid SPS**: {spsBalance}\n"
         AccData += f"**Staked SPS**: {stakedSps}\n"
-        AccData += f"**Total SPS**: {spsBalance + stakedSps + UnclaimedSps}\n"
-        AccData += f"**Unclaimed SPS**: {UnclaimedSps}\n"
-        AccData += f"**Merits **: {merits}\n"
-        UnclaimedBalaces_Pretty = ""
-        for sps in UnclaimedBalances:
-            UnclaimedBalaces_Pretty +=(str(f"{sps['type'].capitalize()} - {sps['balance']} "))
-        AccData += f"**Unclaimed Sps **:{UnclaimedBalaces_Pretty}\n"
+        AccData += f"**Unclaimed SPS**: {TotalUnclaimed}\n"
+        AccData += f"**Total SPS**: {spsBalance + stakedSps + TotalUnclaimed}\n"
+        #UnclaimedBalaces_Pretty = ""
+        #for sps in UnclaimedBalances:
+        #    UnclaimedBalaces_Pretty +=(str(f"{sps['type'].capitalize()} - {sps['balance']} "))
+        #AccData += f"**Unclaimed Sps **:{UnclaimedBalaces_Pretty}\n"
+        
+        AccData += f"**Glint**: {GlintBalance}\n"
+        AccData += f"**Merits**: {merits}\n"
+        AccData += f"**VOUCHER**: {VoucherBalance}\n"
+
     if IsSummary:
-        AccSum = Summary(TotalDec, TotalSps, TotalStaked,TotalUnclaimed)
+        AccSum = Summary(TotalDec, TotalSps, TotalStaked,TotalUnclaimed,AllUnclaimed )
         return AccSum
     else:
-        return AccData
+        AccSum = Summary(TotalDec, TotalSps, TotalStaked,TotalUnclaimed,AllUnclaimed )
+        return AccData + AccSum
 
 def FileOpen():
     with open ("keys.txt","r") as file:
@@ -132,7 +141,7 @@ def FileOpen():
         print(f"JWT Expiration: {JwtExpire}")
 
 
-def Summary (TotalDec, TotalSps, TotalStaked,TotalUnclaimed):
+def Summary (TotalDec, TotalSps, TotalStaked,TotalUnclaimed,AllUnclaimed ):
     AccSum = ""
     ResponsePrice = requests.get(urls[0], params=querystring)
     PriceData = ResponsePrice.json()
@@ -146,24 +155,41 @@ def Summary (TotalDec, TotalSps, TotalStaked,TotalUnclaimed):
     DecUsd = DecPrice * TotalDec
     SpsUsd = SpsPrice * TotalSps
     StakedUsd = SpsPrice * TotalStaked
-    AccSum += f"\n**Total Summery of all Accounts listed Combined into One**\n"
-    AccSum += f"**Total SPS of all Accounts listed (Unstaked and Staked balance included)**\n"
+    AllSPS = TotalStaked + TotalSps + TotalUnclaimed
+    AllSPSUsd = SpsPrice * AllSPS
+    AllUnclaimedUsd = SpsPrice * AllUnclaimed 
+    EverythingUsd = DecUsd + AllSPSUsd
     
-    AccSum += f"**Total Dec:**{TotalDec} **, DEC --> USD =** : {round((DecUsd),2)} \n"
-    AccSum += f" **Total SPS:**{TotalSps} **, SPS --> USD = **: {round((SpsUsd),2)} \n"
-    AccSum +=f"**Total liquid in Usd **: {round((DecUsd+SpsUsd),2)} \n"
-    AccSum +=f"** Total everything in Usd** : {round((DecUsd+SpsUsd+StakedUsd),2)} \n"
+    AccSum += f"\n**Total**\n"
+    AccSum += f"**DEC**: {TotalDec} (${round((DecUsd),2)})\n"
+    AccSum += f"**Liquid SPS**: {TotalSps} (${round((SpsUsd),2)})\n"
+    AccSum += f"**Staked SPS**: {TotalStaked} (${round((StakedUsd),2)})\n"
+    AccSum += f"**Unclaimed SPS**: {AllUnclaimed } (${round((AllUnclaimedUsd),2)})\n"
+    AccSum += f"**Total SPS**: {round((AllSPS),2)} (${round((AllSPSUsd),2)})\n"
+    AccSum+= f"**Total Value**: (${round((EverythingUsd),2)})\n"
+
     
     return AccSum 
 
 def GuildData(GuildName):
-    
-    FormatGuildName = urllib.parse.quote(GuildName)
+    GuildName = str(GuildName)
+    FormatGuildName = GuildName.replace(" ", "%20")
     urlFull=f'{urls[5]}list?name={FormatGuildName}'
-    ResponseGuild =requests.get(urlFull)
-    Guilds = ResponseGuild.json()
-    GuildInfo = ""
-    GuildnameData = next((guild for guild in Guilds if guild['name'] == GuildName), None)
-    GuildInfo += GuildnameData
     
-    return GuildInfo
+    ResponseGuild =requests.get(urlFull)
+    Guilds = ResponseGuild.json().get("guilds", [])
+    
+    GuildInfo = ""
+    NameData = next((guild for guild in Guilds if guild['name'] == GuildName), None)
+
+    GuildInfo +=f"Name: {str(NameData['name'])}\n"
+    GuildInfo +=f"Owner: {NameData['owner']}\n"
+    GuildInfo +=f"Created Date: {NameData['created_date']}\n"
+    GuildInfo +=f"Description: {NameData['description']}\n"
+    GuildInfo +=f"Motto: {NameData['motto']}\n"
+    GuildInfo +=f"Level: {NameData['level']}\n"
+    GuildInfo +=f"Language: {NameData['language']}\n"
+    GuildInfo +=f"Members: {NameData['num_members']}\n"
+    GuildInfo +=f"Rank: {NameData['rank']}\n"
+    GuildInfo +=f"Rating: {NameData['rating']}"
+    return str(GuildInfo)
